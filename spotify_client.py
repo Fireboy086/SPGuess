@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 import configparser
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyOAuth, SpotifyPKCE
 
 
 # Default scopes cover reading liked songs and controlling playback
@@ -48,15 +48,26 @@ class SpotifyClient:
     def __init__(self, scopes: Optional[str] = None, creds_file: Optional[str] = None) -> None:
         self.scopes = scopes or DEFAULT_SCOPES
         creds = load_spotify_creds(creds_file)
-        if creds["client_id"] and creds["client_secret"] and creds["redirect_uri"]:
+        client_id = creds.get("client_id")
+        client_secret = creds.get("client_secret")
+        redirect_uri = creds.get("redirect_uri")
+
+        if client_id and redirect_uri and not client_secret:
+            # PKCE flow: no client secret required; safe to share client_id publicly
+            auth = SpotifyPKCE(
+                client_id=client_id,
+                redirect_uri=redirect_uri,
+                scope=self.scopes,
+            )
+        elif client_id and client_secret and redirect_uri:
             auth = SpotifyOAuth(
-                client_id=creds["client_id"],
-                client_secret=creds["client_secret"],
-                redirect_uri=creds["redirect_uri"],
+                client_id=client_id,
+                client_secret=client_secret,
+                redirect_uri=redirect_uri,
                 scope=self.scopes,
             )
         else:
-            # Let Spotipy fall back to environment variables if present
+            # Fall back to env-configured OAuth (may include secret)
             auth = SpotifyOAuth(scope=self.scopes)
         self._sp = spotipy.Spotify(auth_manager=auth)
 

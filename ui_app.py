@@ -35,6 +35,7 @@ class SPGuessApp(ctk.CTk):
         self.randomize_offset = randomize_offset
         self.per_round_seconds = per_round_seconds
         self.time_limit_enabled = True
+        self.inter_round_delay_ms = 1500
 
         # Game state
         self.lives_remaining = lives
@@ -59,7 +60,12 @@ class SPGuessApp(ctk.CTk):
         pad = 10
         self.grid_columnconfigure(0, weight=1)
 
-        self.status_label = ctk.CTkLabel(self, text="Welcome to SPGuess!", justify="center")
+        self.status_label = ctk.CTkLabel(
+            self,
+            text="Welcome to SPGuess!",
+            justify="center",
+            font=ctk.CTkFont(size=20, weight="bold"),
+        )
         self.status_label.grid(row=0, column=0, padx=pad, pady=(pad, 0))
 
         self.info_frame = ctk.CTkFrame(self)
@@ -81,6 +87,11 @@ class SPGuessApp(ctk.CTk):
         self.score_var = ctk.StringVar(value="Points: 0")
         self.score_label = ctk.CTkLabel(self.info_frame, textvariable=self.score_var)
         self.score_label.grid(row=0, column=3, padx=pad, pady=pad)
+
+        # Timer progress bar for visual polish
+        self.timer_progress = ctk.CTkProgressBar(self.info_frame)
+        self.timer_progress.grid(row=1, column=0, columnspan=4, padx=pad, pady=(0, pad), sticky="ew")
+        self.timer_progress.set(1.0)
 
         self.entry = ctk.CTkEntry(self, placeholder_text="Type your guess (title, optionally artist)")
         self.entry.grid(row=2, column=0, sticky="ew", padx=pad)
@@ -112,14 +123,32 @@ class SPGuessApp(ctk.CTk):
         self.quit_button = ctk.CTkButton(self, text="Quit", command=self.destroy)
         self.quit_button.grid(row=4, column=0, padx=pad, pady=(0, pad))
 
+    def _flash_result(self, success: bool) -> None:
+        try:
+            prev_fg = self.status_label.cget("fg_color")
+        except Exception:
+            prev_fg = "transparent"
+        try:
+            prev_text = self.status_label.cget("text_color")
+        except Exception:
+            prev_text = None
+        color = "#2e7d32" if success else "#c62828"  # green / red
+        self.status_label.configure(fg_color=color, text_color="white")
+        self.after(450, lambda: self.status_label.configure(fg_color=prev_fg, text_color=prev_text))
+
     def _update_info_labels(self) -> None:
         self.lives_var.set(f"Lives: {self.lives_remaining}")
         self.attempts_var.set(f"Attempts: {self.attempts_remaining}")
         if self.time_limit_enabled and self.round_active:
             remaining = max(0, int(self.per_round_seconds - (time.monotonic() - self.round_start_monotonic)))
             self.timer_var.set(f"Time: {remaining}s")
+            # Update progress bar
+            if self.per_round_seconds > 0:
+                frac = max(0.0, min(1.0, remaining / float(self.per_round_seconds)))
+                self.timer_progress.set(frac)
         else:
             self.timer_var.set("Time: OFF")
+            self.timer_progress.set(0.0)
         self.score_var.set(f"Points: {self.score_points}")
 
     def _start_new_round(self) -> None:
@@ -261,6 +290,7 @@ class SPGuessApp(ctk.CTk):
             if remaining <= 0:
                 # Time's up -> fail round (not a skip)
                 self.status_label.configure(text="Time's up for this round!")
+                self._flash_result(False)
                 self._finalize_round(success=False)
                 return
         self._update_info_labels()
@@ -312,6 +342,7 @@ class SPGuessApp(ctk.CTk):
             return
         if guess.lower() in {"skip", "s", "pass", "next"}:
             self.status_label.configure(text="Round skipped.")
+            self._flash_result(False)
             self._finalize_round(success=False)
             return
 
@@ -320,6 +351,7 @@ class SPGuessApp(ctk.CTk):
             self.score_points += base
             self.correct_count += 1
             self.status_label.configure(text=f"Correct! +{base} point(s). It was '{canonicalize_title(self.current_song['title'])}' by {self.current_song['artist']}.")
+            self._flash_result(True)
             self._finalize_round(success=True)
             return
 
@@ -328,9 +360,11 @@ class SPGuessApp(ctk.CTk):
         self._update_info_labels()
         if self.attempts_remaining > 0:
             self.status_label.configure(text="Not quite. Replaying snippet...")
+            self._flash_result(False)
             self._play_snippet_async()
         else:
             self.status_label.configure(text=f"Out of attempts. It was '{canonicalize_title(self.current_song['title'])}' by {self.current_song['artist']}.")
+            self._flash_result(False)
             self._finalize_round(success=False)
 
     def _on_skip(self) -> None:
@@ -350,7 +384,7 @@ class SPGuessApp(ctk.CTk):
             self._end_game()
             return
         # Next round after short pause
-        self.after(900, self._start_new_round)
+        self.after(self.inter_round_delay_ms, self._start_new_round)
 
 
 def run_ui(
