@@ -1,0 +1,68 @@
+{
+  "title": "Hellfire (from the series Arcane League of Legends)",
+  "artist": "Arcane, FEVER 333",
+  "canonical_title": "Hellfire",
+  "uri": "spotify:track:1aFVWIGU2MUJXaRqcxEaBQ",
+  "duration_ms": 164773,
+  "album": "Arcane League of Legends: Season 2 (Soundtrack from the Animated Series)",
+  "release_date": "2024-11-23",
+  "track_number": 5,
+  "disc_number": 1,
+  "explicit": false,
+  "popularity": 65,
+  "preview_url": "",
+  "isrc": "USA2P2459592",
+  "external_urls": {
+    "spotify": "https://open.spotify.com/track/1aFVWIGU2MUJXaRqcxEaBQ"
+  },
+  "artists": [
+    {
+      "id": "57nPqD7z62gDdq37US9XJR",
+      "name": "Arcane"
+    },
+    {
+      "id": "1B0155rdv175D1tQ8VH7Oy",
+      "name": "FEVER 333"
+    }
+  ],
+  "snippet_config": {
+    "seconds_base": 1.0,
+    "seconds_growth": 0.5,
+    "attempts": 3,
+    "randomize_offset": true
+  },
+  "offsets_ms_examples": [
+    0,
+    15000,
+    30000,
+    45000,
+    60000,
+    75000
+  ],
+  "progress_ms_examples": [
+    500,
+    12000,
+    30500,
+    60000,
+    123000,
+    200000
+  ],
+  "lyrics_demo": [
+    {
+      "ms": 0,
+      "text": "—"
+    },
+    {
+      "ms": 15000,
+      "text": "Sample lyric line at 15s"
+    },
+    {
+      "ms": 30000,
+      "text": "Sample lyric line at 30s"
+    },
+    {
+      "ms": 60000,
+      "text": "Sample lyric line at 60s"
+    }
+  ]
+}
