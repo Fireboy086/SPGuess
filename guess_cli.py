@@ -1,4 +1,5 @@
 import json
+import difflib
 import random
 import re
 import time
@@ -31,8 +32,15 @@ def guess_contains_title(guess: str, correct_title: str) -> bool:
 
 
 def is_correct_guess(guess: str, correct_title: str) -> bool:
-    """Lenient match: title equality or contained within the guess (case/punct-insensitive)."""
-    return guess_contains_title(guess, correct_title)
+    """Lenient match: equality/containment or fuzzy similarity (minor mistakes count)."""
+    if guess_contains_title(guess, correct_title):
+        return True
+    ng = normalize_title(guess)
+    nt = normalize_title(canonicalize_title(correct_title))
+    if not ng or not nt:
+        return False
+    ratio = difflib.SequenceMatcher(None, ng, nt).ratio()
+    return ratio >= 0.85
 
 
 def canonicalize_title(raw_title: str) -> str:

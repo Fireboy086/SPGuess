@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import customtkinter as ctk
 
 from guess_cli import is_correct_guess, guess_includes_artist, canonicalize_title
+import difflib
 
 
 class SPGuessApp(ctk.CTk):
@@ -47,6 +48,9 @@ class SPGuessApp(ctk.CTk):
         self.round_start_monotonic: float = 0.0
         self.snippet_thread: Optional[threading.Thread] = None
         self.round_active = False
+        # Suggestions state
+        self.current_suggestions: List[str] = []
+        self.suggestion_index: int = 0
 
         # High score
         self.best_score = 0
@@ -55,10 +59,17 @@ class SPGuessApp(ctk.CTk):
         # UI elements
         self._build_ui()
         self._show_start_screen()
+        # Keep window on top at launch
+        try:
+            self.attributes("-topmost", True)
+            self.after(1500, lambda: self.attributes("-topmost", False))
+        except Exception:
+            pass
 
     def _build_ui(self) -> None:
         pad = 10
         self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
 
         self.status_label = ctk.CTkLabel(
             self,
@@ -96,6 +107,18 @@ class SPGuessApp(ctk.CTk):
         self.entry = ctk.CTkEntry(self, placeholder_text="Type your guess (title, optionally artist)")
         self.entry.grid(row=2, column=0, sticky="ew", padx=pad)
         self.entry.bind("<Return>", lambda _: self._on_guess())
+        self.entry.bind("<KeyRelease>", lambda _: self._update_suggestions())
+        self.entry.bind("<Tab>", self._on_tab_complete)
+
+        # Suggestion zone: scrollable, filtered list
+        self.suggest_frame = ctk.CTkScrollableFrame(self, height=120)
+        self.suggest_frame.grid(row=3, column=0, sticky="nsew", padx=pad, pady=(6, 0))
+        self.suggest_header = ctk.CTkLabel(self.suggest_frame, text="Suggestions", anchor="w")
+        self.suggest_header.grid(row=0, column=0, sticky="ew", padx=6, pady=(4, 6))
+        self.suggest_items_container = ctk.CTkFrame(self.suggest_frame)
+        self.suggest_items_container.grid(row=1, column=0, sticky="nsew")
+        self.suggest_frame.grid_columnconfigure(0, weight=1)
+        self.suggest_frame.grid_rowconfigure(1, weight=1)
 
         helper_text = (
             "Ways to answer: \n"
@@ -108,7 +131,7 @@ class SPGuessApp(ctk.CTk):
         self.helper.grid(row=5, column=0, padx=pad, pady=(0, pad), sticky="w")
 
         self.buttons_frame = ctk.CTkFrame(self)
-        self.buttons_frame.grid(row=3, column=0, sticky="ew", padx=pad, pady=pad)
+        self.buttons_frame.grid(row=4, column=0, sticky="ew", padx=pad, pady=pad)
         self.buttons_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
         self.play_button = ctk.CTkButton(self.buttons_frame, text="Replay Snippet", command=self._on_replay)
@@ -120,8 +143,8 @@ class SPGuessApp(ctk.CTk):
         self.skip_button = ctk.CTkButton(self.buttons_frame, text="Skip", command=self._on_skip)
         self.skip_button.grid(row=0, column=2, padx=pad, pady=pad)
 
-        self.quit_button = ctk.CTkButton(self, text="Quit", command=self.destroy)
-        self.quit_button.grid(row=4, column=0, padx=pad, pady=(0, pad))
+        self.quit_button = ctk.CTkButton(self, text="Quit", command=self._on_quit)
+        self.quit_button.grid(row=6, column=0, padx=pad, pady=(0, pad))
 
     def _flash_result(self, success: bool) -> None:
         try:
@@ -165,18 +188,35 @@ class SPGuessApp(ctk.CTk):
         self._update_info_labels()
         self.after(150, self._play_snippet_async)
         self.after(200, self._tick_timer)
+        self._update_suggestions()
 
     def _show_start_screen(self) -> None:
         top = ctk.CTkToplevel(self)
         top.title("Start Game")
-        top.geometry("420x300")
+        top.geometry("460x420")
         top.grab_set()
+        try:
+            top.attributes("-topmost", True)
+        except Exception:
+            pass
 
         ctk.CTkLabel(top, text="SPGuess – Settings", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=12)
 
         # Random start checkbox
         self._rand_var = ctk.BooleanVar(value=self.randomize_offset)
         ctk.CTkCheckBox(top, text="Start at random position", variable=self._rand_var).pack(anchor="w", padx=16, pady=6)
+
+        # Basic: attempts & lives
+        basic_row = ctk.CTkFrame(top)
+        basic_row.pack(fill="x", padx=12, pady=(6, 0))
+        ctk.CTkLabel(basic_row, text="Attempts:").grid(row=0, column=0, padx=6, pady=6, sticky="w")
+        self._attempts_entry = ctk.CTkEntry(basic_row, width=80)
+        self._attempts_entry.grid(row=0, column=1, padx=6, pady=6)
+        self._attempts_entry.insert(0, str(int(self.attempts_per_round)))
+        ctk.CTkLabel(basic_row, text="Lives:").grid(row=0, column=2, padx=6, pady=6, sticky="w")
+        self._lives_entry = ctk.CTkEntry(basic_row, width=80)
+        self._lives_entry.grid(row=0, column=3, padx=6, pady=6)
+        self._lives_entry.insert(0, str(int(self.lives_total)))
 
         # Time limit toggle and entry
         self._time_limit_enabled_var = ctk.BooleanVar(value=True)
@@ -190,6 +230,15 @@ class SPGuessApp(ctk.CTk):
         self._time_entry.grid(row=0, column=1, padx=6, pady=6, sticky="ew")
         time_row.grid_columnconfigure(1, weight=1)
         self._time_entry.insert(0, str(int(self.per_round_seconds)))
+
+        # Advanced settings toggle
+        self._adv_var = ctk.BooleanVar(value=False)
+        adv_toggle = ctk.CTkCheckBox(top, text="Show advanced settings", variable=self._adv_var, command=lambda: self._toggle_advanced(top))
+        adv_toggle.pack(anchor="w", padx=16, pady=(12, 6))
+
+        # Advanced frame (hidden by default)
+        self._adv_frame = ctk.CTkFrame(top)
+        # child widgets created in toggle handler on first show
 
         btn = ctk.CTkButton(top, text="Start", command=lambda: self._apply_start_settings(top))
         btn.pack(pady=16)
@@ -207,10 +256,58 @@ class SPGuessApp(ctk.CTk):
             self.per_round_seconds = max(5, min(600, secs))
         except Exception:
             pass
+        try:
+            self.attempts_per_round = max(1, int(self._attempts_entry.get().strip()))
+            self.lives_total = max(1, int(self._lives_entry.get().strip()))
+            self.lives_remaining = self.lives_total
+        except Exception:
+            pass
+        # Advanced
+        try:
+            if hasattr(self, "_base_entry"):
+                self.seconds_base = max(0.2, float(self._base_entry.get().strip()))
+            if hasattr(self, "_growth_entry"):
+                self.seconds_growth = max(0.0, float(self._growth_entry.get().strip()))
+            if hasattr(self, "_delay_entry"):
+                self.inter_round_delay_ms = max(300, int(self._delay_entry.get().strip()))
+        except Exception:
+            pass
         top.destroy()
         # Init status labels based on settings
         self._update_info_labels()
         self._start_new_round()
+        # Focus entry for quick typing
+        self.after(50, lambda: self.entry.focus_set())
+
+    def _toggle_advanced(self, top: ctk.CTkToplevel) -> None:
+        show = bool(self._adv_var.get())
+        if show:
+            # populate if empty
+            if not getattr(self, "_adv_built", False):
+                row = ctk.CTkFrame(self._adv_frame)
+                row.pack(fill="x", padx=12, pady=(0, 6))
+                ctk.CTkLabel(row, text="Snippet base (s):").grid(row=0, column=0, padx=6, pady=6, sticky="w")
+                self._base_entry = ctk.CTkEntry(row, width=80)
+                self._base_entry.grid(row=0, column=1, padx=6, pady=6)
+                self._base_entry.insert(0, str(self.seconds_base))
+                ctk.CTkLabel(row, text="Growth per attempt (s):").grid(row=0, column=2, padx=6, pady=6, sticky="w")
+                self._growth_entry = ctk.CTkEntry(row, width=80)
+                self._growth_entry.grid(row=0, column=3, padx=6, pady=6)
+                self._growth_entry.insert(0, str(self.seconds_growth))
+
+                row2 = ctk.CTkFrame(self._adv_frame)
+                row2.pack(fill="x", padx=12, pady=(0, 6))
+                ctk.CTkLabel(row2, text="Inter-round delay (ms):").grid(row=0, column=0, padx=6, pady=6, sticky="w")
+                self._delay_entry = ctk.CTkEntry(row2, width=100)
+                self._delay_entry.grid(row=0, column=1, padx=6, pady=6)
+                self._delay_entry.insert(0, str(self.inter_round_delay_ms))
+                self._adv_built = True
+            self._adv_frame.pack(fill="x", padx=12, pady=(0, 6))
+        else:
+            try:
+                self._adv_frame.pack_forget()
+            except Exception:
+                pass
 
     def _load_high_score(self) -> None:
         try:
@@ -295,6 +392,7 @@ class SPGuessApp(ctk.CTk):
                 return
         self._update_info_labels()
         self.after(200, self._tick_timer)
+        self._update_suggestions()
 
     def _on_replay(self) -> None:
         if self.round_active and self.attempts_remaining > 1:
@@ -337,10 +435,10 @@ class SPGuessApp(ctk.CTk):
             return
         guess = self.entry.get().strip()
         self.entry.delete(0,"end")
-        if guess.lower() in {"quit", "exit"}:
+        if guess.lower() in {"/quit", "/exit"}:
             self.destroy()
             return
-        if guess.lower() in {"skip", "s", "pass", "next"}:
+        if guess.lower() in {"/skip", "/s", "/pass", "/next"}:
             self.status_label.configure(text="Round skipped.")
             self._flash_result(False)
             self._finalize_round(success=False)
@@ -372,6 +470,10 @@ class SPGuessApp(ctk.CTk):
             self.status_label.configure(text="Round skipped.")
             self._finalize_round(success=False)
 
+    def _on_quit(self) -> None:
+        # Open summary then quit
+        self._end_game()
+
     def _finalize_round(self, success: bool) -> None:
         if not self.round_active:
             return
@@ -385,6 +487,62 @@ class SPGuessApp(ctk.CTk):
             return
         # Next round after short pause
         self.after(self.inter_round_delay_ms, self._start_new_round)
+
+    def _update_suggestions(self) -> None:
+        try:
+            text = self.entry.get().strip()
+        except Exception:
+            return
+        # Clear items
+        for w in getattr(self, "_suggest_item_widgets", []):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+        self._suggest_item_widgets = []
+        if not text:
+            self.current_suggestions = []
+            self.suggestion_index = 0
+            return
+        # Build candidate list from songs (title and title - artist)
+        candidates = []
+        for s in self.songs:
+            t = canonicalize_title(s.get("title", ""))
+            a = s.get("artist", "")
+            candidates.append(f"{t}")
+            if a:
+                candidates.append(f"{t} - {a}")
+        # Fuzzy match
+        matches = difflib.get_close_matches(text, candidates, n=50, cutoff=0.5)
+        self.current_suggestions = matches
+        self.suggestion_index = 0
+        # Render buttons
+        for idx, m in enumerate(matches):
+            btn = ctk.CTkButton(self.suggest_items_container, text=m, anchor="w", command=lambda val=m: self._accept_suggestion(val))
+            btn.grid(row=idx, column=0, sticky="ew", padx=6, pady=2)
+            self._suggest_item_widgets.append(btn)
+
+    def _accept_suggestion(self, value: str) -> None:
+        try:
+            self.entry.delete(0, "end")
+            self.entry.insert(0, value)
+            self.entry.icursor("end")
+            self.entry.focus_set()
+        except Exception:
+            pass
+
+    def _on_tab_complete(self, event) -> str:
+        if not self.current_suggestions:
+            return "break"
+        try:
+            value = self.current_suggestions[self.suggestion_index % len(self.current_suggestions)]
+            self.suggestion_index += 1
+            self.entry.delete(0, "end")
+            self.entry.insert(0, value)
+            self.entry.icursor("end")
+        except Exception:
+            return "break"
+        return "break"
 
 
 def run_ui(
@@ -407,6 +565,6 @@ def run_ui(
         randomize_offset=randomize_offset,
         per_round_seconds=per_round_seconds,
     )
-    app.geometry("700x300")
+    app.geometry("600x450") #4x3 * 150
     app.mainloop()
 

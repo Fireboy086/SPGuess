@@ -8,8 +8,8 @@ from spotipy.oauth2 import SpotifyOAuth, SpotifyPKCE
 from spotipy.cache_handler import CacheFileHandler
 
 
-# Default scopes cover reading liked songs and controlling playback
-DEFAULT_SCOPES = "user-library-read user-read-playback-state user-modify-playback-state"
+# Default scopes cover reading liked songs/playlists and controlling playback
+DEFAULT_SCOPES = "user-library-read playlist-read-private user-read-playback-state user-modify-playback-state"
 
 # Optional app-wide public defaults (safe with PKCE). Replace with your own.
 DEFAULT_CLIENT_ID = "d173d609d4cf489d97e80c2d1d7232e3"
