@@ -7,6 +7,7 @@ import customtkinter as ctk
 
 from guess_cli import is_correct_guess, guess_includes_artist, canonicalize_title
 import difflib
+from debug import debug
 
 
 class SPGuessApp(ctk.CTk):
@@ -189,6 +190,7 @@ class SPGuessApp(ctk.CTk):
         self.after(150, self._play_snippet_async)
         self.after(200, self._tick_timer)
         self._update_suggestions()
+        debug("Started new round")
 
     def _show_start_screen(self) -> None:
         top = ctk.CTkToplevel(self)
@@ -393,6 +395,7 @@ class SPGuessApp(ctk.CTk):
         self._update_info_labels()
         self.after(200, self._tick_timer)
         self._update_suggestions()
+        debug("Timer tick")
 
     def _on_replay(self) -> None:
         if self.round_active and self.attempts_remaining > 1:
@@ -429,6 +432,7 @@ class SPGuessApp(ctk.CTk):
 
         self.snippet_thread = threading.Thread(target=target, daemon=True)
         self.snippet_thread.start()
+        debug("Snippet playback thread started")
 
     def _on_guess(self) -> None:
         if not self.round_active or not self.current_song:

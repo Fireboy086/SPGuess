@@ -1,9 +1,11 @@
 from typing import Dict, List
 
+import argparse
 from spotify_client import SpotifyClient
 from spotify_player import SpotifyPlayer
 from guess_cli import run_game
 from ui_app import run_ui
+from debug import set_verbose, debug
 
 
 def preload_liked_songs(sp_client: SpotifyClient, max_items: int = 500) -> List[Dict[str, str]]:
@@ -23,14 +25,22 @@ def preload_liked_songs(sp_client: SpotifyClient, max_items: int = 500) -> List[
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="SPGuess launcher")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logs")
+    args = parser.parse_args()
+    set_verbose(args.verbose)
+    debug("Verbose mode enabled")
     print("---===### SPGuess Launcher ###===---")
     print("Authenticating with Spotify and loading your liked songs...")
 
     client = SpotifyClient()
+    debug("Spotify client initialized")
     sp_api = client.api
     player = SpotifyPlayer(sp_api)
+    debug("Spotify player ready")
 
     liked_songs = preload_liked_songs(client, max_items=500)
+    debug(f"Loaded {len(liked_songs)} liked songs")
     if not liked_songs:
         print("No liked songs found. Please like some songs on Spotify and try again.")
         return

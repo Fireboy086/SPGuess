@@ -6,6 +6,7 @@ import configparser
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth, SpotifyPKCE
 from spotipy.cache_handler import CacheFileHandler
+from debug import debug
 
 
 # Default scopes cover reading liked songs/playlists and controlling playback
@@ -67,6 +68,7 @@ class SpotifyClient:
         from pathlib import Path as _Path
         cache_path = _Path.home() / ".spguess_token_cache"
         cache_handler = CacheFileHandler(cache_path=str(cache_path))
+        debug(f"Using token cache: {cache_path}")
 
         if client_id and redirect_uri and not client_secret:
             # PKCE flow: no client secret required; safe to share client_id publicly
@@ -88,6 +90,7 @@ class SpotifyClient:
             # Fall back to env-configured OAuth (may include secret)
             auth = SpotifyOAuth(scope=self.scopes, cache_handler=cache_handler)
         self._sp = spotipy.Spotify(auth_manager=auth)
+        debug("Spotipy client constructed")
 
     @property
     def api(self) -> spotipy.Spotify:
@@ -105,6 +108,7 @@ class SpotifyClient:
         while len(collected) < max_items:
             remaining = max_items - len(collected)
             page_limit = limit if remaining > limit else remaining
+            debug(f"Fetching liked tracks: limit={page_limit}, offset={offset}")
             results = self._sp.current_user_saved_tracks(limit=page_limit, offset=offset)
             items = results.get("items", [])
             if not items:
