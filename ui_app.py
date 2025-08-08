@@ -183,7 +183,10 @@ class SPGuessApp(ctk.CTk):
         self.current_song = random.choice(self.songs)
         self.attempts_remaining = self.attempts_per_round
         self.round_start_monotonic = time.monotonic()
+        title = canonicalize_title(self.current_song.get("title", "")) if self.current_song else ""
+        artist = (self.current_song or {}).get("artist", "")
         self.status_label.configure(text="Guess the song title!")
+        debug(f"Round start → Selected: '{title}' by {artist}", level="event")
         self.entry.delete(0, "end")
         self.entry.configure(state="normal")
         self._update_info_labels()
@@ -395,7 +398,6 @@ class SPGuessApp(ctk.CTk):
         self._update_info_labels()
         self.after(200, self._tick_timer)
         self._update_suggestions()
-        debug("Timer tick")
 
     def _on_replay(self) -> None:
         if self.round_active and self.attempts_remaining > 1:
@@ -426,6 +428,7 @@ class SPGuessApp(ctk.CTk):
                 headroom_ms = int(max(0, (play_seconds + 0.5) * 1000))
                 max_start = max(0, duration_ms - headroom_ms)
                 start_ms = random.randint(0, max_start) if (self.randomize_offset and max_start > 0) else 0
+                debug(f"Snippet → len={play_seconds:.2f}s start_ms={start_ms}")
                 self.spotify_player.play_track_for(self.current_song["uri"], seconds=play_seconds, start_ms=start_ms)
             except Exception:
                 pass
@@ -452,12 +455,18 @@ class SPGuessApp(ctk.CTk):
             base = 3 if guess_includes_artist(guess, self.current_song["artist"]) else 1
             self.score_points += base
             self.correct_count += 1
-            self.status_label.configure(text=f"Correct! +{base} point(s). It was '{canonicalize_title(self.current_song['title'])}' by {self.current_song['artist']}.")
+            ct = canonicalize_title(self.current_song['title'])
+            self.status_label.configure(text=f"Correct! +{base} point(s). It was '{ct}' by {self.current_song['artist']}.")
+            debug(f"Guess OK → input='{guess}' vs title='{ct}', artist_included={'yes' if base==3 else 'no'}", level="success")
             self._flash_result(True)
             self._finalize_round(success=True)
             return
 
         # Wrong
+        # Compute similarity for storytelling
+        import difflib as _dl
+        ng = _dl.SequenceMatcher(None, guess.lower(), canonicalize_title(self.current_song["title"]).lower()).ratio()
+        debug(f"Guess MISS → input='{guess}', similarity={ng:.2f}", level="warn")
         self.attempts_remaining -= 1
         self._update_info_labels()
         if self.attempts_remaining > 0:
