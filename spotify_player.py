@@ -14,7 +14,7 @@ class SpotifyPlayer:
 
     def get_active_device_id(self) -> Optional[str]:
         devices = self.sp.devices().get("devices", [])
-        debug(f"Devices: {devices}")
+        debug(f"Devices: {devices}", noise=2)
         # Prefer active and not restricted
         for d in devices:
             if d.get("is_active") and not d.get("is_restricted"):
@@ -57,18 +57,18 @@ class SpotifyPlayer:
         try:
             if start_ms is not None:
                 try:
-                    debug(f"start_playback uri={track_uri} device={device_id} position_ms={int(max(0, start_ms))}")
+                    debug(f"start_playback uri={track_uri} device={device_id} position_ms={int(max(0, start_ms))}", noise=2)
                     self.sp.start_playback(device_id=device_id, uris=[track_uri], position_ms=int(max(0, start_ms)))
                 except spotipy.exceptions.SpotifyException:
                     # Retry without position if restricted
-                    debug("position_ms restricted; retrying without offset")
+                    debug("position_ms restricted; retrying without offset", level="warn")
                     self.sp.start_playback(device_id=device_id, uris=[track_uri])
             else:
-                debug(f"start_playback uri={track_uri} device={device_id}")
+                debug(f"start_playback uri={track_uri} device={device_id}", noise=2)
                 self.sp.start_playback(device_id=device_id, uris=[track_uri])
             time.sleep(max(0.1, seconds))
             # Attempt a pause; if restricted, silently ignore without volume changes
-            debug("pause_playback attempt")
+            debug("pause_playback attempt", noise=2)
             self._try_pause(device_id)
         except spotipy.exceptions.SpotifyException as e:
             print(f"Playback error: {e}")

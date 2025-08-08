@@ -193,7 +193,7 @@ class SPGuessApp(ctk.CTk):
         self.after(150, self._play_snippet_async)
         self.after(200, self._tick_timer)
         self._update_suggestions()
-        debug("Started new round")
+        debug("Started new round", noise=1)
 
     def _show_start_screen(self) -> None:
         top = ctk.CTkToplevel(self)
@@ -398,6 +398,7 @@ class SPGuessApp(ctk.CTk):
         self._update_info_labels()
         self.after(200, self._tick_timer)
         self._update_suggestions()
+        debug("Timer tick", noise=2)
 
     def _on_replay(self) -> None:
         if self.round_active and self.attempts_remaining > 1:
@@ -428,14 +429,14 @@ class SPGuessApp(ctk.CTk):
                 headroom_ms = int(max(0, (play_seconds + 0.5) * 1000))
                 max_start = max(0, duration_ms - headroom_ms)
                 start_ms = random.randint(0, max_start) if (self.randomize_offset and max_start > 0) else 0
-                debug(f"Snippet → len={play_seconds:.2f}s start_ms={start_ms}")
+                debug(f"Snippet → len={play_seconds:.2f}s start_ms={start_ms}", noise=2)
                 self.spotify_player.play_track_for(self.current_song["uri"], seconds=play_seconds, start_ms=start_ms)
             except Exception:
                 pass
 
         self.snippet_thread = threading.Thread(target=target, daemon=True)
         self.snippet_thread.start()
-        debug("Snippet playback thread started")
+        debug("Snippet playback thread started", noise=2)
 
     def _on_guess(self) -> None:
         if not self.round_active or not self.current_song:

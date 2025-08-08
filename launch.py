@@ -5,7 +5,7 @@ from spotify_client import SpotifyClient
 from spotify_player import SpotifyPlayer
 from guess_cli import run_game
 from ui_app import run_ui
-from debug import set_verbose, set_color_enabled, debug
+from debug import set_verbose, set_verbosity, set_color_enabled, debug
 
 
 def preload_liked_songs(sp_client: SpotifyClient, max_items: int = 500) -> List[Dict[str, str]]:
@@ -26,12 +26,14 @@ def preload_liked_songs(sp_client: SpotifyClient, max_items: int = 500) -> List[
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="SPGuess launcher")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logs")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v: normal, -vv: extreme)")
     parser.add_argument("--no-color", action="store_true", help="Disable colored debug output")
     args = parser.parse_args()
-    set_verbose(args.verbose)
+    set_verbosity(min(2, int(args.verbose or 0)))
     set_color_enabled(not args.no_color)
-    debug("Verbose mode enabled")
+    if args.verbose:
+        level = "EXTREME" if args.verbose >= 2 else "NORMAL"
+        debug(f"Verbose mode: {level}")
     print("---===### SPGuess Launcher ###===---")
     print("Authenticating with Spotify and loading your liked songs...")
 
