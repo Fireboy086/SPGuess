@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 import customtkinter as ctk
 
-from guess_cli import is_correct_guess, guess_includes_artist, canonicalize_title
+from guess_cli import is_correct_guess, evaluate_guess, guess_includes_artist, canonicalize_title
 import difflib
 from debug import debug
 
@@ -396,9 +396,9 @@ class SPGuessApp(ctk.CTk):
                 self._finalize_round(success=False)
                 return
         self._update_info_labels()
+        # no timer-tick spam
         self.after(200, self._tick_timer)
         self._update_suggestions()
-        debug("Timer tick", noise=2)
 
     def _on_replay(self) -> None:
         if self.round_active and self.attempts_remaining > 1:
@@ -452,22 +452,21 @@ class SPGuessApp(ctk.CTk):
             self._finalize_round(success=False)
             return
 
-        if is_correct_guess(guess, self.current_song["title"]):
+        ok, sim = evaluate_guess(guess, self.current_song["title"])
+        if ok:
             base = 3 if guess_includes_artist(guess, self.current_song["artist"]) else 1
             self.score_points += base
             self.correct_count += 1
             ct = canonicalize_title(self.current_song['title'])
             self.status_label.configure(text=f"Correct! +{base} point(s). It was '{ct}' by {self.current_song['artist']}.")
-            debug(f"Guess OK → input='{guess}' vs title='{ct}', artist_included={'yes' if base==3 else 'no'}", level="success")
+            debug(f"Guess OK → input='{guess}' vs title='{ct}', sim={sim:.2f}, artist_included={'yes' if base==3 else 'no'}", level="success")
             self._flash_result(True)
             self._finalize_round(success=True)
             return
 
         # Wrong
         # Compute similarity for storytelling
-        import difflib as _dl
-        ng = _dl.SequenceMatcher(None, guess.lower(), canonicalize_title(self.current_song["title"]).lower()).ratio()
-        debug(f"Guess MISS → input='{guess}', similarity={ng:.2f}", level="warn")
+        debug(f"Guess MISS → input='{guess}', sim={sim:.2f}", level="warn")
         self.attempts_remaining -= 1
         self._update_info_labels()
         if self.attempts_remaining > 0:
@@ -505,6 +504,7 @@ class SPGuessApp(ctk.CTk):
     def _update_suggestions(self) -> None:
         try:
             text = self.entry.get().strip()
+            debug(f"Typing → '{text}'", noise=2)
         except Exception:
             return
         # Clear items
@@ -528,6 +528,7 @@ class SPGuessApp(ctk.CTk):
                 candidates.append(f"{t} - {a}")
         # Fuzzy match
         matches = difflib.get_close_matches(text, candidates, n=50, cutoff=0.5)
+        debug(f"Suggestions computed → {len(matches)} matches", noise=2)
         self.current_suggestions = matches
         self.suggestion_index = 0
         # Render buttons

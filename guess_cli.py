@@ -11,9 +11,10 @@ from typing import Dict, List, Tuple
 
 
 def normalize_title(value: str) -> str:
-    """Normalize text for lenient matching: lowercase, strip punctuation, collapse spaces."""
+    """Normalize text for lenient matching: lowercase, keep unicode letters/digits, collapse spaces."""
     lowered = value.lower()
-    stripped = re.sub(r"[^a-z0-9\s]", "", lowered)
+    kept_chars = [c for c in lowered if c.isalnum() or c.isspace()]
+    stripped = "".join(kept_chars)
     collapsed = re.sub(r"\s+", " ", stripped).strip()
     return collapsed
 
@@ -31,16 +32,24 @@ def guess_contains_title(guess: str, correct_title: str) -> bool:
     return re.search(pattern, ng) is not None
 
 
-def is_correct_guess(guess: str, correct_title: str) -> bool:
-    """Lenient match: equality/containment or fuzzy similarity (minor mistakes count)."""
+def evaluate_guess(guess: str, correct_title: str) -> Tuple[bool, float]:
+    """Return (is_correct, similarity[0..1]). Handles unicode and empty cases safely."""
     if guess_contains_title(guess, correct_title):
-        return True
+        ng = normalize_title(guess)
+        nt = normalize_title(canonicalize_title(correct_title))
+        sim = difflib.SequenceMatcher(None, ng, nt).ratio() if (ng and nt) else 0.0
+        return True, sim
     ng = normalize_title(guess)
     nt = normalize_title(canonicalize_title(correct_title))
     if not ng or not nt:
-        return False
+        return False, 0.0
     ratio = difflib.SequenceMatcher(None, ng, nt).ratio()
-    return ratio >= 0.85
+    return (ratio >= 0.85), ratio
+
+
+def is_correct_guess(guess: str, correct_title: str) -> bool:
+    ok, _ = evaluate_guess(guess, correct_title)
+    return ok
 
 
 def canonicalize_title(raw_title: str) -> str:
