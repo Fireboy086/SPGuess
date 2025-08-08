@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 import configparser
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth, SpotifyPKCE
+from spotipy.cache_handler import CacheFileHandler
 
 
 # Default scopes cover reading liked songs and controlling playback
@@ -62,12 +63,18 @@ class SpotifyClient:
         client_secret = creds.get("client_secret")
         redirect_uri = creds.get("redirect_uri")
 
+        # Use a user-writable token cache file to avoid repeated consent prompts
+        from pathlib import Path as _Path
+        cache_path = _Path.home() / ".spguess_token_cache"
+        cache_handler = CacheFileHandler(cache_path=str(cache_path))
+
         if client_id and redirect_uri and not client_secret:
             # PKCE flow: no client secret required; safe to share client_id publicly
             auth = SpotifyPKCE(
                 client_id=client_id,
                 redirect_uri=redirect_uri,
                 scope=self.scopes,
+                cache_handler=cache_handler,
             )
         elif client_id and client_secret and redirect_uri:
             auth = SpotifyOAuth(
@@ -75,10 +82,11 @@ class SpotifyClient:
                 client_secret=client_secret,
                 redirect_uri=redirect_uri,
                 scope=self.scopes,
+                cache_handler=cache_handler,
             )
         else:
             # Fall back to env-configured OAuth (may include secret)
-            auth = SpotifyOAuth(scope=self.scopes)
+            auth = SpotifyOAuth(scope=self.scopes, cache_handler=cache_handler)
         self._sp = spotipy.Spotify(auth_manager=auth)
 
     @property
