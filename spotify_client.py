@@ -10,6 +10,10 @@ from spotipy.oauth2 import SpotifyOAuth, SpotifyPKCE
 # Default scopes cover reading liked songs and controlling playback
 DEFAULT_SCOPES = "user-library-read user-read-playback-state user-modify-playback-state"
 
+# Optional app-wide public defaults (safe with PKCE). Replace with your own.
+DEFAULT_CLIENT_ID = "d173d609d4cf489d97e80c2d1d7232e3"
+DEFAULT_REDIRECT_URI = "http://127.0.0.1:8888/callback"
+
 
 def _find_creds_file(explicit_path: Optional[str] = None) -> Optional[Path]:
     candidates = []
@@ -39,6 +43,12 @@ def load_spotify_creds(config_path: Optional[str] = None) -> Dict[str, str]:
     creds["client_id"] = creds["client_id"] or os.getenv("SPOTIPY_CLIENT_ID", "")
     creds["client_secret"] = creds["client_secret"] or os.getenv("SPOTIPY_CLIENT_SECRET", "")
     creds["redirect_uri"] = creds["redirect_uri"] or os.getenv("SPOTIPY_REDIRECT_URI", "")
+
+    # Final fallback to public defaults for PKCE flow (no secret)
+    if not creds["client_id"] and DEFAULT_CLIENT_ID:
+        creds["client_id"] = DEFAULT_CLIENT_ID
+    if not creds["redirect_uri"] and DEFAULT_REDIRECT_URI:
+        creds["redirect_uri"] = DEFAULT_REDIRECT_URI
     return creds
 
 
