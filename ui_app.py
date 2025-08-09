@@ -398,7 +398,7 @@ class SPGuessApp(ctk.CTk):
         self._update_info_labels()
         # no timer-tick spam
         self.after(200, self._tick_timer)
-        self._update_suggestions()
+        # self._update_suggestions()
 
     def _on_replay(self) -> None:
         if self.round_active and self.attempts_remaining > 1:
