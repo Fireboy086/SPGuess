@@ -67,14 +67,6 @@ Type the title (and optionally the artist) to guess what’s playing from your o
 - Playback errors or 403: Spotify playback control generally requires Premium and can be restricted on some devices.
 - Nothing plays / silence: Some tracks have restricted `position_ms` seeking; the player falls back to starting at 0 when needed.
 
-### Packaging (macOS)
-- A prebuilt app bundle is tracked under `appmac/dist/SPGuess.app`.
-- To build locally with PyInstaller (requires `pyinstaller`):
-  ```bash
-  pyinstaller "appmac/SPGuess.spec"
-  ```
-  Output goes to `appmac/dist/`.
-
 ### Dev utilities
 - `scripts/update_test_song.py`: Refreshes `test_data/sample_song.json` from Spotify search (includes offsets and metadata). Example:
   ```bash
