@@ -22,21 +22,7 @@ Type the title (and optionally the artist) to guess what’s playing from your o
    ```bash
    pip install -r requirements.txt
    ```
-3. **Configure Spotify auth (pick one)**
-   - Env vars:
-     - `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET` (optional if using PKCE), `SPOTIPY_REDIRECT_URI`
-   - Or place a `.Creds.ini` file in project root (or alongside `spotify_client.py`):
-     ```ini
-     [Spotify]
-     ClientID=YOUR_CLIENT_ID
-     ClientSecret=YOUR_CLIENT_SECRET
-     RedirectURI=http://127.0.0.1:8888/callback
-     ```
-   - Notes:
-     - PKCE is supported; if you provide only `ClientID` and `RedirectURI`, no secret is required.
-     - The code includes safe public defaults for PKCE; you can use your own app credentials instead.
-     - Tokens are cached at `~/.spguess_token_cache` to avoid re-consent.
-4. **Run**
+3. **Run**
    ```bash
    python launch.py
    ```
